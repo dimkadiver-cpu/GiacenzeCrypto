@@ -1,5 +1,7 @@
 # PRD master — Gestione nativa dei derivati crypto in GiacenzeCrypto
 
+> **Bozza precedente conservata per tracciabilità, non documento di riferimento.** Il PRD master da usare per la progettazione e per gli ID dei requisiti è [`2026-11-02-derivatives-integration-prd.md`](2026-11-02-derivatives-integration-prd.md). In particolare, la gestione della classificazione manuale, delle componenti economiche, degli override, dello storico, della reimportazione e della compatibilità con `GUI_ClassificazioneMovimento` è specificata nei requisiti `REQ-EDIT-08…16`, in `AC-15…19` e nella [Design Spec canonica §10.6–10.11](../architecture/2026-11-02-derivatives-canonical-event-contract-design.md#106-riuso-della-classificazione-manuale-gia-presente--audit-verificato). Non introdurre nuovi requisiti in questa bozza per evitare due fonti di verità.
+
 **Data:** 2026-11-02  
 **Stato:** DRAFT — requisiti di prodotto da approvare; **non** costituisce una specifica tecnica o una validazione fiscale.  
 **Repository:** `dimkadiver-cpu/GiacenzeCrypto`  
