@@ -115,7 +115,7 @@ Se `PlusXWallet` crea pile fiscali distinte, il collegamento `PTW/DTW` e i rifer
 
 **Contratto richiesto dalla Design Spec:** la classificazione economica cambia il tipo (non il saldo); la correzione contabile può cambiare il delta e deve riconciliarsi; la policy fiscale è una terza dimensione. Il raw source resta immutabile; `automatic` e `manualOverride` compongono la proiezione `effective`. Un override deve sopravvivere a reimport identico, ma non deve essere applicato automaticamente a un evento diverso dopo un cambiamento del parser. Un conflitto blocca il report fiscale pertinente, senza inventare poste di quadratura.
 
-Vedi [Design Spec eventi canonici, §10.6–10.11](2026-11-02-derivatives-canonical-event-contract-design.md#106-riuso-della-classificazione-manuale-gia-presente--audit-verificato) e [PRD di riferimento, §6.9](../product/2026-11-02-derivatives-integration-prd.md#69-modifica-eliminazione-e-storico).
+Vedi [Design Spec eventi canonici, §10.6–10.11](2026-11-02-derivatives-canonical-event-contract-design.md) e [PRD di riferimento, §6.9](../product/2026-11-02-derivatives-integration-prd.md#69-modifica-eliminazione-e-storico).
 
 **Limite:** questo approfondimento deriva dalla lettura delle routine nominate; resta da ispezionare integralmente il wiring `Principale.java`, eseguire test GUI e verificare gli effetti runtime dei diversi percorsi.
 
