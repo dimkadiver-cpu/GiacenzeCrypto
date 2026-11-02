@@ -265,7 +265,7 @@ Per questi casi sono comunque MUST: riconoscimento come non coperti, tracciabili
 | REQ-EDIT-15 | MUST | Annullare una classificazione/override riporta l'evento alla proiezione automatica coerente e ripristina i collegamenti pertinenti, preservando sorgenti e storico e senza lasciare poste derivate orfane. |
 | REQ-EDIT-16 | MUST | Il ciclo di modifica, anteprima, annullamento, salvataggio, chiusura senza salvare e restore deve essere coerente: nessuna persistenza di metà dei cambiamenti né versioni fiscali separate dal relativo movimento. |
 
-**Separazione di responsabilità:** la classificazione manuale già presente nell'applicazione rimane il percorso principale di intervento su depositi, prelievi e collegamenti. L'estensione ai derivati introduce le componenti economiche con un editor integrato nel dettaglio, non una seconda categoria di contabilità. In particolare: per il record `+95 USDC` composto da `PNL +100`, `FUNDING -3`, `FEE -2`, cambiare solo la causale `FEE` in `FUNDING` lascia invariati i `+95 USDC`. Cambiare `FUNDING -3` in `-4` senza altra evidenza lascia una discrepanza di `-1 USDC`, da segnalare senza aggiungere posting arbitrari. Vedi [Design Spec, §10.6–10.11](../architecture/2026-11-02-derivatives-canonical-event-contract-design.md#106-riuso-della-classificazione-manuale-gia-presente--audit-verificato).
+**Separazione di responsabilità:** la classificazione manuale già presente nell'applicazione rimane il percorso principale di intervento su depositi, prelievi e collegamenti. L'estensione ai derivati introduce le componenti economiche con un editor integrato nel dettaglio, non una seconda categoria di contabilità. In particolare: per il record `+95 USDC` composto da `PNL +100`, `FUNDING -3`, `FEE -2`, cambiare solo la causale `FEE` in `FUNDING` lascia invariati i `+95 USDC`. Cambiare `FUNDING -3` in `-4` senza altra evidenza lascia una discrepanza di `-1 USDC`, da segnalare senza aggiungere posting arbitrari. Vedi [Design Spec, §10.6–10.11](../architecture/2026-11-02-derivatives-canonical-event-contract-design.md).
 
 ### 6.10 Report, export e archivio dichiarazioni
 
@@ -495,7 +495,7 @@ Una sezione distinta per i derivati mostra stato di completezza, questioni norma
 8. Benchmark base vs feature su dataset comparabili: migliaia di funding, molte posizioni, import sovrapposti, memoria di picco.
 9. Verifica manuale GUI/forme e stampe PDF/Excel su almeno un caso completo e uno bloccato.
 10. Riconciliazione con estratti reali pseudonimizzati e valori certificati indipendentemente dal programma.
-11. Test di classificazione manuale, editor di componenti, storico, perdita/recupero di override nel reimport, mismatch di saldo e anulllamento; coprire AC-15…19 senza assumere una persistenza già implementata per tutte le classificazioni.
+11. Test di classificazione manuale, editor di componenti, storico, perdita/recupero di override nel reimport, mismatch di saldo e annullamento; coprire AC-15…19 senza assumere una persistenza già implementata per tutte le classificazioni.
 
 Suite da cui partire: DerivatiTest; ImportazioneGenericaAvvisoDerivatiTest; ImportazioneGenericaBybitTest; CommissioniCollegateTest; GruppoOperazioneTest; CalcoliPlusvalenzeNewEquivalenzaIncrementaleTest; CalcoliPlusvalenzeNewGoldenMasterTest; Calcoli_RW_GoldenMasterTest; Calcoli_RW_GiacenzeTest; GUI_ModificaMovimentoSoloPrezzoTest; Principale_Movimenti_SeparaUnisciTest; DocumentiFonteTest; MovimentiStoricoTest; Backup_RestoreTest; Backup_CompatibilitaTest; DichiarazioniTest.
 
