@@ -45,7 +45,7 @@ Fuori da questa specifica:
 
 ## 3. Quattro concetti indipendenti
 
-**3.1 Asset e classificazione.** L'asset che passa di mano è USDT, USDC, BTC, ecc.; la sua qualificazione `Crypto/EMoney/...` viene dal registro di token/data e dalle regole fiscali esistenti. Non inferire `EMMoney` dal suffisso `USD`, né dare per scontato che 1 USDT valga 1 EUR.
+**3.1 Asset e classificazione.** L'asset che passa di mano è USDT, USDC, BTC, ecc.; la sua qualificazione `Crypto/EMoney/...` viene dal registro di token/data e dalle regole fiscali esistenti. Non inferire `EMoney` dal suffisso `USD`, né dare per scontato che 1 USDT valga 1 EUR.
 
 **3.2 Contratto.** `instrumentId`, `productKind` (perpetual/future), `payoffKind` (linear/inverse/other/unknown), `underlyingAsset`, `quoteAsset`, `settlementAsset`, `marginAsset`, `contractMultiplier`, `expiry` se noti. La valuta di regolamento **non** si deduce automaticamente dal nome simbolo e non coincide obbligatoriamente con il collaterale; un conto unificato può condividere collaterale fra prodotti.
 
@@ -135,10 +135,10 @@ Un `EXECUTION_INFO` senza differenziale può esistere come record informativo; u
 | `authoritativeFields` | Fonte scelta per ciascun attributo, motivazione e versione regola |
 | `postingPlan[]` | Unico insieme di variazioni patrimoniali accettate |
 | `components[]` | Componenti economiche accettate, con stato di provenienza |
-| `reconciliationStatus` | `MATCHED`, `UNMATCHED`, `AMBIGUOUS`, `CONFLICT`, `INCOMPLETE`, `OVERRIDDEN`, `UNSUPPORTED` |
+| `reconciliationStatus` | `RECONCILED`, `MATCHED`, `UNMATCHED`, `AMBIGUOUS`, `CONFLICT`, `INCOMPLETE`, `OVERRIDDEN`, `UNSUPPORTED` |
 | `fiscalEligibility` | Valore `PENDING` finché policy/regole/prezzi non sono verificati |
 
-Non confondere `reconciliationStatus` con `fiscalEligibility`. Un saldo può essere affidabile mentre la classificazione fiscale resta in sospeso.
+Non confondere `reconciliationStatus` con `fiscalEligibility`. `RECONCILED` indica che le componenti di una sola fonte sono coerenti con il saldo osservato; `MATCHED` indica inoltre corrispondenze tra fonti riconosciute. Un saldo può essere affidabile mentre la classificazione fiscale resta in sospeso.
 
 ---
 
@@ -201,6 +201,7 @@ La documentazione ufficiale Bybit V5 dichiara `change = cashFlow + funding - fee
 {
   "contractVersion": "derivatives-canonical/1",
   "canonicalEventId": "SYNTHETIC-BYBIT-001",
+  "sourceRefs": [{"documentId": "DOC_SYNTHETIC_001", "recordKey": "ROW_001", "sourceFormat": "BYBIT_V5"}],
   "recordRole": "LEDGER",
   "eventKind": "BALANCE_CHANGE",
   "occurredAtUtc": "2025-07-10T08:00:00Z",
@@ -214,7 +215,7 @@ La documentazione ufficiale Bybit V5 dichiara `change = cashFlow + funding - fee
     {"type": "TRADING_FEE", "asset": "USDC", "signedAmount": "-2"}
   ],
   "completeness": "COMPLETE",
-  "reconciliationStatus": "MATCHED",
+  "reconciliationStatus": "RECONCILED",
   "fiscalEligibility": "PENDING"
 }
 ```
