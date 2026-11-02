@@ -102,12 +102,22 @@ Se `PlusXWallet` crea pile fiscali distinte, il collegamento `PTW/DTW` e i rifer
 
 ### P1 — Editing, annullamento e provenienza
 
-`GUI_ModificaMovimento` ricostruisce i movimenti e copia i campi non ricalcolati; `Principale_Movimenti_SeparaUnisci` riporta 43/44/45; `MovimentiStorico` registra le versioni; `DocumentiFonte` rimanda l'eliminazione finché i movimenti non sono salvati. Per ogni evento derivato serve una policy esplicita:
+**Esito dell'approfondimento statico (2026-11-02): il sistema di classificazione manuale esiste già e va riutilizzato**, non replicato per i derivati. Le principali routine verificate:
 
-- che cosa si può modificare liberamente e che cosa richiede uno `override` tracciato;
-- che cosa succede ai risultati derivati quando si modifica un movimento collegato;
-- cancellazione di documento, annullamento, ripristino, unione/separazione, traslazione data, duplicazione;
-- preservazione di fonte e identificativi, senza lasciare proiezioni, perdite fiscali o lotti orfani.
+- [`GUI_ClassificazioneMovimento`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/GUI_ClassificazioneMovimento.java) espone reward, acquisto, costo zero, trasferimento tra wallet, commissioni/cash-out, donazione/furto, collaterale, prestito, scambio differito. Supporta classificazioni singole e alcune multiple, collegamenti e annullamento.
+- `ClassificaMovimenti(...)` chiama la pulizia dei collegamenti e muta **in place** i campi dell'array originale `[5]`, `[17]`, `[18]`, `[19]`, `[20]`, `[21]` e, in alcuni casi, prezzo `[15]`/`[35]`. **Non chiama direttamente `MovimentiStorico.AccodaModifica`**: la storia autonoma delle scelte di classificazione non risulta garantita da questo metodo.
+- `RiportaTransazioniASituazioneIniziale(...)` scioglie `[20]`, rimuove gli eventuali movimenti generati `[22]=AU`, annulla la classificazione e ripristina il prezzo temporaneo. Il contratto degli override derivati dovrà evitare che un annullamento perda eventi economici o riferimenti.
+- [`GUI_ModificaMovimento`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/GUI_ModificaMovimento.java) supporta la modifica manuale e usa `MovimentiStorico`; sui generati `AU` o sui movimenti collegati (`[20]`) limita la modifica a prezzo e note, salvo percorso che scioglie il gruppo.
+- [`Importazioni`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/Importazioni.java) con `Sovrascrivi esistenti` annulla classificazioni preesistenti, incrementa `ClassificazioniAnnullate` e avvisa. Ciò **non equivale alla conservazione di un override economico**; la nuova feature richiede confronto manuale/automatico prima della sovrascrittura.
+- `MovimentiStorico` conserva il lignaggio `[42]` delle modifiche accodate e scrive il buffer allo stesso salvataggio dei movimenti; `DocumentiFonte` conserva il documento di origine e coordina le eliminazioni.
+
+**Gap non coperti oggi**: categoria economica per derivati distinta da deposito/reward; editing di N componenti economiche di un unico delta saldo; verifica `sum(components) = observedDelta` per asset; override economico durevole e relazionato all'evento canonico; storico delle classificazioni; preservazione/risoluzione dei conflitti al reimport; commit/undo e invalidazione coerenti tra saldo, LIFO e report T/RT.
+
+**Contratto richiesto dalla Design Spec:** la classificazione economica cambia il tipo (non il saldo); la correzione contabile può cambiare il delta e deve riconciliarsi; la policy fiscale è una terza dimensione. Il raw source resta immutabile; `automatic` e `manualOverride` compongono la proiezione `effective`. Un override deve sopravvivere a reimport identico, ma non deve essere applicato automaticamente a un evento diverso dopo un cambiamento del parser. Un conflitto blocca il report fiscale pertinente, senza inventare poste di quadratura.
+
+Vedi [Design Spec eventi canonici, §10.6–10.11](2026-11-02-derivatives-canonical-event-contract-design.md#106-riuso-della-classificazione-manuale-gia-presente--audit-verificato) e [PRD di riferimento, §6.9](../product/2026-11-02-derivatives-integration-prd.md#69-modifica-eliminazione-e-storico).
+
+**Limite:** questo approfondimento deriva dalla lettura delle routine nominate; resta da ispezionare integralmente il wiring `Principale.java`, eseguire test GUI e verificare gli effetti runtime dei diversi percorsi.
 
 ### P1 — Backup, stampe e dichiarazioni
 
