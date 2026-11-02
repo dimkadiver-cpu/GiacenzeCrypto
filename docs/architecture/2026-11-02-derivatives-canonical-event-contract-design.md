@@ -358,6 +358,88 @@ Il report specifico c-quater non è un nuovo "RT Futures" indipendente dal siste
 
 La UI espone in modo leggibile: evento originale, record collegati, asset/account, delta netto, componenti, PnL lordi/netti, stato di riconciliazione e stato fiscale. Modifiche a una classificazione, data, segno, prezzo, associazione o gruppo invalidano i consumatori; l'override non riscrive il documento sorgente.
 
+
+### 10.6 Riuso della classificazione manuale già presente — audit verificato
+
+**Non progettare un secondo gestore generalista dei movimenti derivati.** Il flusso UI esistente copre già una parte rilevante del ciclo:
+
+| Punto reale | Comportamento verificato | Implicazione |
+|---|---|---|
+| [\`GUI_ClassificazioneMovimento\`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/GUI_ClassificazioneMovimento.java) | Classifica depositi/prelievi come reward, acquisto, donazione, trasferimento, commissione/cash-out, operazioni di collaterale; può classificare gruppi compatibili e annullare la classificazione | Estendere le scelte in base alla *natura economica* derivata; non riusare \`DAI\`/reward per un PnL di perpetual |
+| \`ClassificaMovimenti(...)\` | Dopo \`PulisciMovimentiAssociati\`, modifica **in place** gli originali (\`[5]\`, \`[17]\`, \`[18]\`, \`[19]\`, \`[20]\`, \`[21]\`, eventuali \`[15]\` e \`[35]\`) | Il vecchio array non conserva una versione fiscale delle scelte per i derivati; la nuova operazione deve produrre uno storico di **decisione semantica** |
+| \`RiportaTransazioniASituazioneIniziale(...)\` | Rimuove i movimenti generati \`[22]=AU\`, scioglie gli abbinamenti \`[20]\`, ripristina importi/prezzo temporanei e codici di classificazione | L'annullamento va esteso al nuovo override senza perdere source record o toccare altri eventi correlati |
+| [\`GUI_ModificaMovimento\`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/GUI_ModificaMovimento.java) | Consente modifica dati, ma i generati o collegati (\`[20]\` non vuoto) sono limitati a **prezzo e note**, salvo il percorso che scioglie il gruppo | L'editor di componenti derivati non deve aggirare le protezioni dei movimenti collegati |
+| [\`MovimentiStorico\`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/MovimentiStorico.java) | Registra snapshot delle modifiche esplicitamente accodate e li scrive solo al salvataggio dei movimenti | \`ClassificaMovimenti\` non chiama direttamente \`AccodaModifica\`; progettare copertura del cambio di classificazione senza assumere che sia già storicizzato |
+| [\`Importazioni\`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/Importazioni.java) | \`Sovrascrivi esistenti\` annulla associazioni/classificazioni, incrementa \`ClassificazioniAnnullate\` e mostra un avviso; lo storico del movimento può mantenere il lignaggio | L'avviso da solo **non** preserva un override economico; serve confronto, conservazione e scelta esplicita alla sovrascrittura |
+| [\`DocumentiFonte\`](../../src/main/java/com/giacenzecrypto/giacenze_crypto/DocumentiFonte.java) | Mantiene documenti originali e relativa identità | Le correzioni non devono mutare il file/API di origine |
+
+**Limite di questa verifica:** si sono ispezionate le routine nominate e i loro contratti, non l'intero wiring di \`Principale.java\` o una sessione GUI. La classificazione economica dei derivati descritta sotto è **da implementare**, non è oggi disponibile nell'editor.
+
+### 10.7 Tre operazioni che NON devono diventare un'unica modifica
+
+| Tipo intervento | Oggetto | Effetto consentito | Invariante |
+|---|---|---|---|
+| **Classificazione economica** | Tipo di componente: per esempio \`TRADING_FEE\` → \`FUNDING\` | Cambia natura, eventuale trattamento fiscale, report e filtri | Importo, asset e posting **non** cambiano solo per riclassificazione |
+| **Correzione contabile** | Quantità, asset, timestamp, account, componenti del netto e matching | Cambia i dati *effettivi* dopo approvazione, con override documentato | Il delta osservato dalla fonte resta consultabile; le somme per asset devono riconciliarsi |
+| **Decisione fiscale** | Qualificazione/regime, costo attribuito al settlement, aliquota, ammissibilità onere | Si applica tramite versione di policy e perimetro fiscale, non tramite causale arbitraria nel JSON | Nessuna correzione di importo o categoria fiscale può sanare implicitamente una regola giuridica \`PENDING\` |
+
+Un utente può effettuare queste tre operazioni attraverso **un unico dettaglio UI**, ma devono avere autorizzazioni, validazioni, storico e conseguenze di ricalcolo distinte. La scelta di una categoria manuale \`PNL\` non prova da sola che il contratto sia fiscalmente c-quater.
+
+**Stato attuale del confronto:** la UI ordinaria classifica soprattutto i depositi/prelievi; non conosce la scomposizione canonica \`economicComponents[]\`. L'estensione non è quindi un mero nuovo valore nella combobox: è un adattamento del workflow esistente al nuovo modello.
+
+### 10.8 Viste sorgente, automatica ed effettiva: niente perdita del dato originale
+
+Richiesta funzionale (persistenza da definire in ADR):
+
+1. **\`source\`** — \`SourceRecord\` e valori originari immutabili, inclusi importi, cause e id nativi.
+2. **\`automatic\`** — normalizzazione riproducibile da sorgente e versione del parser/JSON.
+3. **\`manualOverride\`** — solo i campi modificati, valore precedente, nuovo valore, autore/istante, motivo, riferimenti, stato attivo/annullato e *versione della base su cui è stato proposto*.
+4. **\`effective\`** — proiezione deterministica dei dati automatici con override esplicitamente attivi e compatibili; è l'unica che produce il \`postingPlan\` accettato e l'input dei motori.
+
+Non imporre in questa Design Spec una nuova tabella per ognuna delle quattro viste. La scelta DTO, H2 e proiezioni ricostruibili sarà l'ADR. **La fonte di verità patrimoniale rimane unica**; il layer di override non è un secondo ledger.
+
+**Identità:** l'override deve riferirsi a un \`canonicalEventId\` durevole, con collegamento a \`SourceRecordKey\`. Il solo \`v[0]\` del movimento non basta: può cambiare per modifica, traslazione, scambio differito o reimport. \`[42]\` (lignaggio) resta utile per lo storico legacy, ma non sostituisce automaticamente l'identità economica canonica. Se un nuovo parsing divide o unisce eventi, il sistema deve proporre un remapping esplicito e verificato, non applicare l'override a un evento sbagliato.
+
+### 10.9 Contratto di riconciliazione dopo modifica manuale
+
+**Fixture di incoerenza controllata:** una fonte documenta \`+100 USDC PnL -3 USDC funding -2 USDC fee = +95 USDC change\`.
+
+- **Riclassificazione sola:** \`TRADING_FEE → FUNDING\` per la componente di \`-2\`: la quantità netta resta \`+95\`. Reimputare categorie fiscali e mostrare l'avvenuta scelta.
+- **Correzione componenti:** modificando il funding da \`-3\` a \`-4\`, le componenti sommano \`+94\`, ma la fonte dichiara \`+95\`. Il sistema **non** deve sottrarre 1 USDC dal saldo né registrare una nuova fee per chiudere automaticamente il disavanzo.
+- **Risposta obbligatoria:** stato \`CONFLICT\` / \`PENDING_RESOLUTION\`; confronto \`observed=+95\` vs \`components=+94\`, differenza \`-1\` USDC; impedire l'output fiscale definitivo interessato. L'utente può correggere un'altra componente **con evidenza**, oppure proporre una rettifica del posting con motivazione e fonte di conferma; in entrambi i casi occorre una conferma esplicita e ricalcolo.
+- **Inversione/undo:** annullare l'override deve ripristinare il dato \`automatic\` senza reimport obbligatorio, preservando le versioni storiche.
+
+Per fee in una *valuta diversa* il controllo deve essere effettuato per asset; non richiedere una somma aritmetica tra USDT e BTC. Per una \`completeness=PARTIAL\` non dare per scontato che la differenza sia un errore: segnalare *scomposizione incompleta*, evitando di inventare redditi.
+
+### 10.10 Reimportazione, sovrascrittura e annullamento: workflow comune
+
+Il percorso attuale \`Sovrascrivi esistenti\` può sciogliere classificazioni manuali; per i **nuovi eventi derivati** la condotta richiesta è:
+
+1. **Preview non distruttiva:** confrontare nuovo parsing/fonte e versione base con \`effective\` esistente, mostrando le decisioni utente attive e le differenze.
+2. **Stessa semantica, stessa identità:** l'override manuale può rimanere attivo e deve essere verificato; nessun doppio posting, nessuna riscrittura arbitraria della cronologia.
+3. **Dati sorgente modificati o ristrutturazione di eventi:** non riapplicare automaticamente override incompatibili; marcare \`CONFLICT\` e richiedere \`mantieni override / accetta nuovo parsing / modifica manualmente / rimanda\` secondo condizioni documentate.
+4. **Utente annulla il reimport:** nessuna mutazione di saldo, override, legami o storico.
+5. **Conferma e salvataggio:** aggiornare unitariamente gli stati necessari in coerenza col ciclo di salvataggio esistente; rollback di tutti gli effetti in caso di errore; il dettaglio conserva prima/dopo e relative fonti.
+6. **Cancellazione documento:** rivalutare se altri documenti supportano gli eventi; non cancellare senza conferma una decisione utente o lasciare proiezioni fiscali orfane. Un override senza più una fonte valida richiede uno stato esplicito e l'esclusione dai report definitivi finché non risolto.
+7. **Dichiarazione già definitiva:** mantenere inalterato lo snapshot archiviato, mostrare la differenza rispetto al ricalcolo corrente.
+
+**Non assumere che il normale avviso \`ClassificazioniAnnullate\` soddisfi questi requisiti:** documenta una perdita di classificazione già avvenuta, non costituisce conservazione dell'override.
+
+### 10.11 Validazione e invalidazione delle dipendenze
+
+Distinguere \`sourceRevision\`, \`parserRevision\`, \`manualRevision\` e \`fiscalPolicyRevision\`, oppure un meccanismo semanticamente equivalente (struttura concreta da decidere). Il ricalcolo deve invalidare in modo causale:
+
+| Modifica | Account/saldo | Lotti/costo | Componenti derivati | Report T/RT e W/RW |
+|---|---|---|---|---|
+| Solo tipo \`FEE → FUNDING\`, stessa valuta/quantità | **Invariato** | Invariato salvo impatto fiscale provato | **Ricalcolare** classificazione | Rifare report interessati |
+| Cambia importo, asset, data, account | **Ricalcolare** | **Ricalcolare** | **Riconciliare** | Rifare anni interessati |
+| Cambio manuale del prezzo EUR, quantità invariata | Invariato | Ricalcolare se determina costo fiscale | **Rivalutare** | Rifare totali fiscali interessati |
+| Modifica di regola fiscale senza cambio quantità | Invariato | Ricalcolare se impatta lotti | **Ricalcolare** proiezione fiscale | Rifare i prospetti interessati |
+| Rimozione fonte o modifica matching | Verificare posting accettati | Verificare lotti dipendenti | Rivalutare autorità/conflitti | Report potenzialmente bloccati |
+
+Non introdurre un ricalcolo totale *per definizione*: usare i checkpoint e le impronte dove è corretto, ma garantire che lo stato completo e quello incrementale siano **equivalenti**. In particolare, quando il nuovo kernel leggerà \`[44]\` e gli override, le impronte/epoche dovranno riconoscerne la modifica; oggi il marcatore 44 è intenzionalmente fuori dall'impronta del kernel crypto.
+
+
 ---
 
 ## 11. Test contrattuali obbligatori
@@ -384,6 +466,14 @@ La UI espone in modo leggibile: evento originale, record collegati, asset/accoun
 | EVT-18 | Report senza policy costo asset settlement / prezzo EUR | Ledger diagnostico possibile, report dichiarativo NON definitivo |
 | EVT-19 | Fee già inclusa in PnL netto e presente in Order History | Un addebito economico, nessun doppio fee |
 | EVT-20 | Bonus, liquidazione, consegna fisica o inverso non supportati | Provenienza mantenuta, nessun posting inventato, stato di blocco pertinente |
+| EVT-21 | +95 USDC, componenti +100/−3/−2; riclassifica sola FEE → FUNDING | Delta patrimoniale +95 invariato, classificazione e report aggiornati, scelta storicizzata |
+| EVT-22 | +95 osservato e componente funding corretta −3 → −4 | Componenti +94, differenza −1 esplicita, nessun posting aggiuntivo, report fiscale bloccato |
+| EVT-23 | Correzione dei componenti con riconciliazione dell'altra voce documentata | Stato da CONFLICT a riconciliato senza cambiare dato raw; versioni consultabili |
+| EVT-24 | Annulla classificazione derivati e collega/scollega movimento generato AU | Identità evento/fonte preservata, niente movimenti o componenti orfani |
+| EVT-25 | Reimport identico con override manuale attivo | Override conservato e verificato, stessi posting e report, nessun doppione |
+| EVT-26 | Reimport cambia PnL, timestamp o scompone eventi: override non più compatibile | Preview CONFLICT, nessuna perdita silenziosa o remapping a evento sbagliato |
+| EVT-27 | Modifica quantità di evento collegato o generato | UI impedisce bypass dei vincoli, propone percorso sicuro; undo ripristina tutti i legami |
+| EVT-28 | Salva/annulla correzione; backup, restore e report definitivo preesistente | Commit coerente; backup mantiene decisioni, ripristino identico; snapshot storico invariato |
 
 La suite deve verificare anche invarianti di precisione, timestamp in secondi/millisecondi, identità hash per scope, `BigDecimal`, simulazione JSON senza scrittura e completo vs incrementale.
 
@@ -404,7 +494,10 @@ La suite deve verificare anche invarianti di precisione, timestamp in secondi/mi
 | ADR-EVT-07 | Regole asset settlement e fiscale | Integrazione EMT, LIFO unico, policy legalmente validata |
 | ADR-EVT-08 | Performance / storage | Granularità raw vs aggregazione reversibile, benchmark su funding massivi |
 | ADR-EVT-09 | Eventi storici già importati | Recovery da `DocumentiFonte`, handling per missing raw |
-| ADR-EVT-10 | PRD canonico | Nel branch sono presenti due file "PRD master": scegliere il documento di riferimento prima di approvare tutti i gate |
+| ADR-EVT-10 | PRD canonico | **Individuato**: [PRD di riferimento](../product/2026-11-02-derivatives-integration-prd.md); la [prima bozza](../product/2026-11-02-derivatives-integration-master-prd.md) resta storica/non normativa per i nuovi requisiti |
+| ADR-EVT-11 | Editor e decisioni manuali dei derivati | Riusare GUI di classificazione/modifica e storico esistenti; stabilire copertura delle versioni della classificazione (oggi non garantita da `ClassificaMovimenti`) |
+| ADR-EVT-12 | Persistenza override e commit/undo | Legame tramite `canonicalEventId`, modifiche semantiche separate da importi/policy; rollback e backup atomici |
+| ADR-EVT-13 | Reimport con override e matching modificati | Precedenza/manual conflict review, mai azzeramento silenzioso o reimport che crea due redditi |
 
 ### Gate di approvazione di questo contratto
 
@@ -414,6 +507,7 @@ La suite deve verificare anche invarianti di precisione, timestamp in secondi/mi
 4. Produrre specifica successiva della sintassi JSON, della persistenza e della migrazione, solo dopo questi test concettuali.
 5. Mantenere separati gli stati `accounting-ready` e `tax-ready`; nessuna regola fiscale non confermata entra nel kernel generico.
 6. Coprire l'intero lifecycle (edit/delete/undo/reimport/backup/restore/report) prima di dichiarare completata la feature.
+7. Verificare con EVT-21…28 che la UI esistente supporti override semantici e quantitativi senza introdurre un secondo sistema di classificazione o perdere correzioni al reimport.
 
 ---
 
