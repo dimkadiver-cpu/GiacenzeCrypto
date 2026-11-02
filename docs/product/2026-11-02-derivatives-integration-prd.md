@@ -241,6 +241,8 @@ Per questi casi sono comunque MUST: riconoscimento come non coperti, tracciabili
 | REQ-UI-07 | MUST | Ogni correzione che cambia la fiscalità deve mostrare impatti e richiedere conferma; il risultato non deve cambiare silenziosamente. |
 | REQ-UI-08 | SHOULD | Presentare PnL/funding/fee per periodo e provider con drill-down, ma mantenere distinzione da report fiscale ufficiale. |
 | REQ-UI-09 | MUST | Il percorso dall'import al report deve poter essere completato usando l'interfaccia, senza editare a mano file CSV/DB o chiamare API interne. |
+| REQ-UI-10 | MUST | Riutilizzare la GUI di classificazione/modifica esistente per la scelta della natura economica di un evento derivato; nel dettaglio evento offrire l'accesso alle componenti PnL/funding/fee quando presenti, senza duplicare la gestione generica dei movimenti. |
+| REQ-UI-11 | MUST | In caso di correzione dei componenti non coerente con il delta di saldo della fonte, mostrare importi prima/dopo, differenza per asset, stato di conflitto e percorsi di risoluzione; non modificare il saldo automaticamente. |
 
 ### 6.9 Modifica, eliminazione e storico
 
@@ -253,6 +255,17 @@ Per questi casi sono comunque MUST: riconoscimento come non coperti, tracciabili
 | REQ-EDIT-05 | MUST | Il reimport non sovrascrive silenziosamente modifiche manuali qualificate; risolve conflitti con scelta esplicita. |
 | REQ-EDIT-06 | MUST | Tutti i calcoli e i report che dipendono da un evento corretto sono invalidati e ricostruibili; lo stato precedente rimane ispezionabile. |
 | REQ-EDIT-07 | MUST | La modifica di dati presenti in una dichiarazione marcata definitiva deve mostrare che una ristampa può differire dalla versione archiviata. |
+| REQ-EDIT-08 | MUST | Distinguere tre operazioni: **classificazione economica** (tipo di componente), **correzione contabile** (quantità/asset/data/account/relazione) e **decisione fiscale** (regola e decorrenza approvata). Le modifiche non possono produrre effetti collaterali taciti sulle altre dimensioni. |
+| REQ-EDIT-09 | MUST | Una riclassificazione della componente, a importo/asset invariati (es. TRADING_FEE → FUNDING), conserva la quantità patrimoniale e ricalcola soltanto gli effetti semantici/fiscali pertinenti. |
+| REQ-EDIT-10 | MUST | Correggere una componente di un evento composto senza quadratura fra importo netto osservato e componenti crea uno stato **CONFLICT** visibile, non una rettifica automatica del saldo; la fiscalizzazione definitiva resta bloccata finché il conflitto materiale non è risolto. |
+| REQ-EDIT-11 | MUST | Conservare separatamente record sorgente immutabile, normalizzazione automatica, override manuale versionato e valore effettivo. La rappresentazione effettiva non è un secondo registro patrimoniale. |
+| REQ-EDIT-12 | MUST | Associare l'override all'identità economica stabile, non soltanto all'ID legacy del movimento; se nuovi parsing dividono/fondono eventi, chiedere riconciliazione dell'override, senza assegnarlo a un fatto economico diverso. |
+| REQ-EDIT-13 | MUST | Registrare le **decisioni di classificazione manuale dei derivati** in uno storico consultabile e ripristinabile. Non presumere che il percorso di classificazione oggi scriva già versioni in MovimentiStorico. |
+| REQ-EDIT-14 | MUST | Il reimport o Sovrascrivi esistenti non cancella automaticamente un override economico valido; presenta il confronto e richiede decisione esplicita in caso di incompatibilità tra nuova fonte/parser e classificazione utente. |
+| REQ-EDIT-15 | MUST | Annullare una classificazione/override riporta l'evento alla proiezione automatica coerente e ripristina i collegamenti pertinenti, preservando sorgenti e storico e senza lasciare poste derivate orfane. |
+| REQ-EDIT-16 | MUST | Il ciclo di modifica, anteprima, annullamento, salvataggio, chiusura senza salvare e restore deve essere coerente: nessuna persistenza di metà dei cambiamenti né versioni fiscali separate dal relativo movimento. |
+
+**Separazione di responsabilità:** la classificazione manuale già presente nell'applicazione rimane il percorso principale di intervento su depositi, prelievi e collegamenti. L'estensione ai derivati introduce le componenti economiche con un editor integrato nel dettaglio, non una seconda categoria di contabilità. In particolare: per il record `+95 USDC` composto da `PNL +100`, `FUNDING -3`, `FEE -2`, cambiare solo la causale `FEE` in `FUNDING` lascia invariati i `+95 USDC`. Cambiare `FUNDING -3` in `-4` senza altra evidenza lascia una discrepanza di `-1 USDC`, da segnalare senza aggiungere posting arbitrari. Vedi [Design Spec, §10.6–10.11](../architecture/2026-11-02-derivatives-canonical-event-contract-design.md#106-riuso-della-classificazione-manuale-gia-presente--audit-verificato).
 
 ### 6.10 Report, export e archivio dichiarazioni
 
@@ -267,6 +280,7 @@ Per questi casi sono comunque MUST: riconoscimento come non coperti, tracciabili
 | REQ-REP-07 | MUST | I report definitivi devono conservare uno snapshot riproducibile anche se dopo cambiano prezzi, classificazioni e regole. |
 | REQ-REP-08 | MUST | L'assenza di informazioni necessarie deve rendere il report preliminare/limitato, non occultare problemi con zeri. |
 | REQ-REP-09 | SHOULD | Esportare dettaglio e riepilogo in formati già utilizzati dall'app (ad es. Excel/PDF), con stessa logica di calcolo dei dati visualizzati. |
+| REQ-REP-10 | MUST | Per ogni valore fiscale influenzato da override, mostrare classificazione iniziale, scelta effettiva, data/motivo e fonte, senza confondere la decisione manuale con una regola normativa validata. |
 
 ### 6.11 Persistenza, migrazione, backup e restore
 
@@ -281,6 +295,7 @@ Per questi casi sono comunque MUST: riconoscimento come non coperti, tracciabili
 | REQ-PER-07 | MUST | Mantiene la provenienza dei dati da CSV/API e la cronologia manuale, rispettando cancellazione e reinserimento dei documenti. |
 | REQ-PER-08 | MUST | Il salvataggio deve essere coerente per evento, postings e riferimenti: in caso di errore non deve restare una metà dell'operazione. |
 | REQ-PER-09 | SHOULD | Consentire diagnostica/migrazione del pregresso con modalità solo-preview e applicazione esplicita, senza imporre reimport totale. |
+| REQ-PER-10 | MUST | Includere nel backup/restore l'identità canonica, la storia delle classificazioni e gli override attivi/revocati; dopo un restore su installazione pulita la vista effettiva deve produrre gli stessi posting e gli stessi risultati fiscali consentiti. |
 
 ---
 
@@ -385,6 +400,26 @@ Un PnL +100 USDT genera asset ricevuti; successivamente parte degli USDT è util
 
 Import di contratto inverse coin-margined. **Atteso:** tracciato conservato e identificato «non supportato»; nessun PnL fiscale o saldo sintetico derivato dal notional, nessuna dichiarazione definitiva con quel blocco irrisolto.
 
+### AC-15 — Riclassificazione economica senza variazione del saldo
+
+Fonte di ledger: `+95 USDC` derivante da `PNL +100`, `FUNDING -3` e `FEE -2`. L'utente riclassifica la componente `FEE -2` in `FUNDING -2`. **Atteso:** saldo invariato a `+95`; tipo economico aggiornato con motivo e storia; effetto fiscale ricalcolato solo se previsto da policy validata; documento fonte immutato.
+
+### AC-16 — Modifica quantità che crea conflitto
+
+Dallo stesso evento, l'utente corregge `FUNDING -3` in `FUNDING -4`, senza cambiare la fonte che dice `change +95`. **Atteso:** componenti `+94`, confronto con netto `+95`, conflitto `-1 USDC`; nessun ulteriore addebito automatico; report fiscale definitivo non generabile per l'evento fino a risoluzione documentata.
+
+### AC-17 — Reimport con classificazione manuale
+
+L'utente corregge manualmente un evento e salva; importa nuovamente lo stesso CSV, poi un file con modifica di quantità o timestamp. **Atteso:** nel primo caso override conservato e nessun duplicato; nel secondo, preview delle differenze, override in conflitto se non più compatibile, nessuna sovrascrittura silenziosa.
+
+### AC-18 — Annullamento, gruppo collegato e storico
+
+L'utente annulla la classificazione di un evento derivato collegato a commissioni o a movimenti generati. **Atteso:** ritorno alla proiezione automatica, rimozione degli effetti generati pertinenti senza cancellare fonti, nessun riferimento orfano; storico della scelta e degli annullamenti riproducibile.
+
+### AC-19 — Undo, salvataggio, backup e dichiarazione preesistente
+
+Modifica importo/data e categoria di un evento 2025; interrompe e annulla senza salvare; ripete, conferma e salva, quindi ripristina il backup su installazione pulita. **Atteso:** annullamento senza cambi persistenti, commit coerente, matching e lotti identici dopo restore, precedenti dichiarazioni definitive immutate e differenze segnalate.
+
 ---
 
 ## 10. Policy fiscale, prove normative e blocchi di conformità
@@ -431,7 +466,14 @@ La vista per sotto-account mostra per ciascun asset: saldo iniziale noto o ignot
 
 ### 11.3 Percorso modifica
 
-Un movimento può essere corretto con motivazione, senza cancellare la fonte originale. Le correzioni confluiscono nei ricalcoli e nei report. L'utente può consultare le versioni precedenti e capire quali prospetti cambiano.
+**Riutilizzare `GUI_ClassificazioneMovimento` e `GUI_ModificaMovimento`, senza sostituirne le operazioni già disponibili.** Il percorso attuale consente di assegnare causali a depositi/prelievi, collegare trasferimenti, annullare classificazioni e modificare movimenti; i movimenti generati o collegati possono richiedere prima di sciogliere il gruppo.
+
+Per i derivati la UI dovrà distinguere:
+1. **Categoria economica:** tipo PnL/funding/fee, senza modificare quantità e saldo.
+2. **Componenti e dati contabili:** importi, valuta, account, data e relazioni; anteprima della nuova quadratura prima del salvataggio.
+3. **Policy fiscale:** consultazione della regola applicata o del blocco `POLICY_PENDING`; non riclassificare un errore normativo come reward crypto.
+
+**Workflow:** mostrare fonte immutabile + lettura automatica + eventuale correzione effettiva; confermare motivo e impatti; storicizzare anche le classificazioni economiche; salvare o annullare in coerenza col ciclo attuale. In caso di reimport, preservare la correzione compatibile e aprire un conflitto esplicito se il nuovo parsing la rende incompatibile. I report già archiviati restano immutati e vengono confrontati con i nuovi risultati.
 
 ### 11.4 Percorso dichiarazione
 
@@ -453,6 +495,7 @@ Una sezione distinta per i derivati mostra stato di completezza, questioni norma
 8. Benchmark base vs feature su dataset comparabili: migliaia di funding, molte posizioni, import sovrapposti, memoria di picco.
 9. Verifica manuale GUI/forme e stampe PDF/Excel su almeno un caso completo e uno bloccato.
 10. Riconciliazione con estratti reali pseudonimizzati e valori certificati indipendentemente dal programma.
+11. Test di classificazione manuale, editor di componenti, storico, perdita/recupero di override nel reimport, mismatch di saldo e anulllamento; coprire AC-15…19 senza assumere una persistenza già implementata per tutte le classificazioni.
 
 Suite da cui partire: DerivatiTest; ImportazioneGenericaAvvisoDerivatiTest; ImportazioneGenericaBybitTest; CommissioniCollegateTest; GruppoOperazioneTest; CalcoliPlusvalenzeNewEquivalenzaIncrementaleTest; CalcoliPlusvalenzeNewGoldenMasterTest; Calcoli_RW_GoldenMasterTest; Calcoli_RW_GiacenzeTest; GUI_ModificaMovimentoSoloPrezzoTest; Principale_Movimenti_SeparaUnisciTest; DocumentiFonteTest; MovimentiStoricoTest; Backup_RestoreTest; Backup_CompatibilitaTest; DichiarazioniTest.
 
@@ -521,7 +564,9 @@ Ogni piano tecnico deve indicare file/contratti toccati, rischi, sequenza, test 
 | ADR-03 | Contratto dei sotto-account e differenza da gruppi fiscali | Non sostituire retroattivamente il nome exchange |
 | ADR-04 | API comuni per lotti, calcoli RT e giacenze a data | Non implementare quarta copia del LIFO |
 | ADR-05 | Eventi fiscali derivati, versioni normativa e dependency/invalidation | Non produrre imposte dal solo saldo |
-| ADR-06 | Workflow e rollback di modifica/cancellazione/restore | Non lasciare dati orfani |
+| ADR-06 | Workflow e rollback di modifica/cancellazione/restore | Non lasciare dati orfani; integrare l'editor attuale senza eludere il blocco sui movimenti collegati |
+| ADR-11 | Identità e persistenza delle correzioni economiche/quantitative | Manual override su evento canonico, separato da source e policy fiscale; anteprima e storico |
+| ADR-12 | Policy di sovrascrittura per classificazioni manuali | Preservare quelle compatibili e confrontare quelle in conflitto, anziché annullarle silenziosamente |
 | ADR-07 | Filtro UI, navigazione fonte e stato report | Non nascondere le incertezze |
 | ADR-08 | Strategia per archivi storici e doppie sorgenti già importate | Nessuna migrazione distruttiva |
 | ADR-09 | Strategia benchmark e granularità degli eventi ad alta frequenza | Non aggregare irreversibilmente prima del matching |
